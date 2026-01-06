@@ -1,0 +1,20 @@
+<section>
+  <h3>Pin Details</h3>
+
+  <p><strong>ID:</strong> {{ data()?.id }}</p>
+  <p><strong>Lat:</strong> {{ data()?.lat }}</p>
+  <p><strong>Lng:</strong> {{ data()?.lng }}</p>
+  <form [formGroup]="popupForm" (ngSubmit)="save()">
+    <h1>Add Details</h1>
+    <div class="grid">
+      <label for="name">Name</label>
+      <input type="text" pInputText formControlName="name" />
+    </div>
+    <div class="grid">
+      <label for="description">Description</label>
+      <input type="text" pInputText formControlName="description" />
+    </div>
+    <p-button class="mr-2" label="Save" type="submit"></p-button>
+    <p-button label="Cancel" type="button" (click)="cancel()"></p-button>
+  </form>
+</section>

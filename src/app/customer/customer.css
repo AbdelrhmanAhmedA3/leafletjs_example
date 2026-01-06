@@ -1,0 +1,8 @@
+#img {
+  width: 600px;
+  height: 100vh !important;
+  background: red;
+}
+.leaflet-container {
+  height: 100vh !important;
+}
