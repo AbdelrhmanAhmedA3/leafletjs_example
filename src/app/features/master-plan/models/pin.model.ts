@@ -10,8 +10,8 @@ export interface Pin {
 }
 
 export interface MapLevel {
-  id: string;
+  id: string; // Used as the unique key in the levels record
   name: string;
-  imageUrl: string;
+  imageUrl?: string; // Made optional as it might not be uploaded yet
   parentLevelId?: string;
 }

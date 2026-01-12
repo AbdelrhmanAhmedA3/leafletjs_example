@@ -24,11 +24,9 @@ import { PinDialogComponent } from '../pin-dialog/pin-dialog.component';
   imports: [CommonModule, ButtonModule, TooltipModule],
   providers: [DialogService],
   template: `
-    <div class="map-container-wrapper">
-      <div
-        class="controls p-3 flex justify-content-between align-items-center bg-white shadow-2 border-round-bottom"
-      >
-        <div class="flex gap-2 align-items-center">
+    <div class="map-container-wrapper" (dragover)="onDragOver($event)" (drop)="onDrop($event)">
+      <div class="controls shadow-2">
+        <div class="controls-left">
           @if (store.navigationHistory().length > 0) {
           <p-button
             icon="pi pi-arrow-left"
@@ -37,10 +35,10 @@ import { PinDialogComponent } from '../pin-dialog/pin-dialog.component';
             label="Back"
           />
           }
-          <h2 class="m-0 text-xl font-bold text-primary">{{ store.currentLevel().name }}</h2>
+          <h2 class="level-title">{{ store.currentLevel().name }}</h2>
         </div>
 
-        <div class="flex gap-2">
+        <div class="controls-right">
           @if (!isCustomerOnlyRoute()) {
           <p-button
             [label]="store.isAdminMode() ? 'Exit Admin Mode' : 'Admin Create Pins'"
@@ -53,6 +51,39 @@ import { PinDialogComponent } from '../pin-dialog/pin-dialog.component';
       </div>
 
       <div #mapContainer class="map-container"></div>
+
+      @if (!store.currentLevel().imageUrl) {
+      <div class="overlay-state">
+        @if (store.isAdminMode()) {
+        <div class="drop-zone">
+          <i class="pi pi-cloud-upload upload-icon"></i>
+          <p class="drop-text">Drag & Drop Image Here</p>
+          <p class="drop-subtext">
+            Please upload the image for <b>{{ store.currentLevel().name }}</b>
+          </p>
+          <input
+            type="file"
+            #fileInput
+            class="hidden-input"
+            (change)="onFileSelected($event)"
+            accept="image/*"
+          />
+          <p-button
+            label="Browse Files"
+            icon="pi pi-search"
+            class="mt-3"
+            (onClick)="fileInput.click()"
+          />
+        </div>
+        } @else {
+        <div class="empty-state">
+          <i class="pi pi-image text-6xl text-400"></i>
+          <p class="text-xl">No image uploaded for this area yet.</p>
+          <p class="text-600">Please contact the administrator.</p>
+        </div>
+        }
+      </div>
+      }
     </div>
   `,
   styles: [
@@ -62,21 +93,105 @@ import { PinDialogComponent } from '../pin-dialog/pin-dialog.component';
         display: flex;
         flex-direction: column;
         position: relative;
+        background: #f8f9fa;
+        overflow: hidden;
       }
       .map-container {
-        flex: 1;
+        position: absolute;
+        top: 0;
+        left: 0;
         width: 100%;
-        background: #f8f9fa;
+        height: 100%;
+        z-index: 1;
       }
+
       .controls {
         position: absolute;
         top: 0;
         left: 0;
         right: 0;
-        z-index: 1000;
+        z-index: 1001;
         margin: 1rem;
+        padding: 1rem;
+        background: white;
         border-radius: 8px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
       }
+      .controls-left,
+      .controls-right {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+      .level-title {
+        margin: 0;
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #2a82ba;
+      }
+
+      .overlay-state {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+        background: #f8f9fa;
+        z-index: 1000;
+      }
+
+      .drop-zone,
+      .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        max-width: 600px;
+        padding: 3rem;
+        border-radius: 12px;
+        text-align: center;
+        background: white;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      }
+
+      .drop-zone {
+        border: 2px dashed #cbd5e1;
+        background: #f8fafc;
+      }
+
+      .empty-state {
+        color: #64748b;
+      }
+
+      .upload-icon {
+        font-size: 4rem;
+        color: #94a3b8;
+        margin-bottom: 1rem;
+      }
+      .drop-text {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin: 0.5rem 0;
+        color: #1e293b;
+      }
+      .drop-subtext {
+        color: #64748b;
+        margin-bottom: 1.5rem;
+      }
+      .hidden-input {
+        display: none;
+      }
+      .mt-3 {
+        margin-top: 1rem;
+      }
+
       :host ::ng-deep .leaflet-container {
         background: #f8f9fa;
         cursor: crosshair;
@@ -88,21 +203,20 @@ export class MapViewerComponent implements OnInit, OnDestroy {
   readonly store = inject(MasterPlanStore);
   private readonly dialogService = inject(DialogService);
   private readonly route = inject(ActivatedRoute);
-  readonly mapContainer = viewChild.required<ElementRef<HTMLDivElement>>('mapContainer');
+  readonly mapContainer = viewChild<ElementRef<HTMLDivElement>>('mapContainer');
 
   readonly isCustomerOnlyRoute = signal<boolean>(false);
 
   private map?: L.Map;
   private imageOverlay?: L.ImageOverlay;
   private markers: L.Marker[] = [];
-  private dialogRef!: DynamicDialogRef | null;
+  private dialogRef: DynamicDialogRef | null = null;
 
   constructor() {
     // Check for customer only mode from route
     const customerOnly = this.route.snapshot.data['customerOnly'];
     if (customerOnly) {
       this.isCustomerOnlyRoute.set(true);
-      // Ensure admin mode is off if strictly customer view
       if (this.store.isAdminMode()) {
         this.store.toggleAdminMode();
       }
@@ -111,7 +225,17 @@ export class MapViewerComponent implements OnInit, OnDestroy {
     // React to level changes
     effect(() => {
       const level = this.store.currentLevel();
-      this.updateMapImage(level);
+      if (level?.imageUrl) {
+        // Ensure map is initialized before updating image
+        if (!this.map) {
+          setTimeout(() => {
+            this.initMap();
+            this.updateMapImage(level);
+          }, 0);
+        } else {
+          this.updateMapImage(level);
+        }
+      }
     });
 
     // React to pin changes
@@ -122,8 +246,10 @@ export class MapViewerComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
-    // Wait for view init
-    setTimeout(() => this.initMap(), 0);
+    const level = this.store.currentLevel();
+    if (level?.imageUrl) {
+      setTimeout(() => this.initMap(), 0);
+    }
   }
 
   ngOnDestroy() {
@@ -132,8 +258,79 @@ export class MapViewerComponent implements OnInit, OnDestroy {
     }
   }
 
+  onDragOver(event: DragEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  onDrop(event: DragEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    const files = event.dataTransfer?.files;
+    if (files && files.length > 0) {
+      this.processFile(files[0]);
+    }
+  }
+
+  onFileSelected(event: any) {
+    const files = event.target.files;
+    if (files && files.length > 0) {
+      this.processFile(files[0]);
+    }
+  }
+
+  private processFile(file: File) {
+    if (!file.type.startsWith('image/')) return;
+
+    const reader = new FileReader();
+    reader.onload = (e: any) => {
+      const base64 = e.target.result;
+      this.compressImage(base64, 1200, 0.7).then((compressed) => {
+        this.store.updateLevelImage(this.store.currentLevelId(), compressed);
+        // Force Leaflet update after a brief delay for DOM stability
+        setTimeout(() => {
+          if (this.map) {
+            this.map.invalidateSize();
+          }
+        }, 100);
+      });
+    };
+    reader.readAsDataURL(file);
+  }
+
+  private compressImage(base64: string, maxWidth: number, quality: number): Promise<string> {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.src = base64;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+    });
+  }
+
   private initMap() {
-    const container = this.mapContainer().nativeElement;
+    const containerRef = this.mapContainer();
+    if (!containerRef) return;
+
+    const container = containerRef.nativeElement;
+
+    if (this.map) {
+      this.map.remove();
+    }
 
     this.map = L.map(container, {
       crs: L.CRS.Simple,
@@ -143,9 +340,11 @@ export class MapViewerComponent implements OnInit, OnDestroy {
       attributionControl: false,
     });
 
-    this.updateMapImage(this.store.currentLevel());
+    const level = this.store.currentLevel();
+    if (level?.imageUrl) {
+      this.updateMapImage(level);
+    }
 
-    // Initial pin render once map is ready
     this.renderPins(this.store.currentLevelPins());
 
     this.map.on('click', (e: L.LeafletMouseEvent) => {
@@ -156,9 +355,8 @@ export class MapViewerComponent implements OnInit, OnDestroy {
   }
 
   private updateMapImage(level: MapLevel) {
-    if (!this.map) return;
+    if (!this.map || !level.imageUrl) return;
 
-    // Standard high-res bounds for simplified coordinate system
     const bounds: L.LatLngBoundsExpression = [
       [0, 0],
       [1000, 1000],
@@ -175,13 +373,10 @@ export class MapViewerComponent implements OnInit, OnDestroy {
   private renderPins(pins: Pin[]) {
     if (!this.map) return;
 
-    // Clear existing markers
     this.markers.forEach((m) => m.remove());
     this.markers = [];
 
     pins.forEach((pin) => {
-      // Step 1: Create custom icon HTML with an 'X' button for Admin
-      // Using a Data URI for the pin to avoid 404 errors and ensure it always loads
       const pinSvg = `data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjUiIGhlaWdodD0iNDEiIHZpZXdCb3g9IjAgMCAyNSA0MSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cGF0aCBkPSJNMTIuNSAwQzUuNTk4IDAgMCA1LjU5OCAwIDEyLjVjMCAxMS41NjIgMTIuNSAyOC41IDEyLjUgMjguNVMyNSAyNC4wNjIgMjUgMTIuNUMyNSA1LjU5OCAxOS40MDIgMCAxMi41IDB6bTAgMTguNzVjLTMuNDUxIDAtNi4yNS0yLjc5OS02LjI1LTYuMjVzMi43OTktNi4yNSA2LjI1LTYuMjUgNi4yNSAyLjc5OSA2LjI1IDYuMjUtMi43OTkgNi4yNS02LjI1IDYuMjV6IiBmaWxsPSIjMkE4MkJBIi8+PC9zdmc+`;
 
       const iconHtml = `
@@ -191,24 +386,9 @@ export class MapViewerComponent implements OnInit, OnDestroy {
             this.store.isAdminMode()
               ? `
             <div id="del-${pin.id}" class="delete-pin-x" style="
-              position: absolute;
-              top: -8px;
-              right: -8px;
-              background: #ef4444;
-              color: white;
-              border-radius: 50%;
-              width: 18px;
-              height: 18px;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              font-size: 11px;
-              cursor: pointer;
-              box-shadow: 0 1px 3px rgba(0,0,0,0.4);
-              z-index: 1000;
-              font-weight: bold;
-              line-height: 1;
-              border: 1.5px solid white;
+              position: absolute; top: -8px; right: -8px; background: #ef4444; color: white;
+              border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center;
+              justify-content: center; font-size: 11px; cursor: pointer; border: 1.5px solid white;
             ">✕</div>
           `
               : ''
@@ -222,46 +402,37 @@ export class MapViewerComponent implements OnInit, OnDestroy {
         iconSize: [25, 41],
         iconAnchor: [12, 41],
       });
-
       const marker = L.marker([pin.lat, pin.lng], { icon: customIcon }).addTo(this.map!);
 
-      // Step 2: Bind Tooltip for info
       marker.bindTooltip(
         `
         <div class="p-2">
           <div class="font-bold border-bottom-1 border-300 pb-1 mb-1">${pin.name}</div>
           <div class="text-sm text-600 mb-1"><b>Block:</b> ${pin.blockNumber}</div>
-          <div class="text-sm">${pin.description}</div>
+          <div class="text-sm mb-1">${pin.description}</div>
+          <div class="text-xs text-400 mt-2 pt-1 border-top-1 border-200">
+            Lat: ${pin.lat} | Lng: ${pin.lng}
+          </div>
         </div>
       `,
         { permanent: false, direction: 'left', className: 'p-tooltip-custom' }
       );
 
-      // Step 3: Handle Delete Logic via DOM reference
       if (this.store.isAdminMode()) {
         setTimeout(() => {
           const xBtn = document.getElementById(`del-${pin.id}`);
-          if (xBtn) {
+          if (xBtn)
             xBtn.onclick = (e) => {
-              e.preventDefault();
               e.stopPropagation();
               this.store.removePin(pin.id);
             };
-          }
         }, 0);
       }
 
-      // Step 4: Handle Navigation (Drill Down)
       marker.on('click', (e: L.LeafletMouseEvent) => {
-        // Prevent drill down if clicking the delete icon
         const target = e.originalEvent.target as HTMLElement;
-        if (target && target.classList.contains('delete-pin-x')) {
-          return;
-        }
-
-        if (pin.targetLevelImage) {
-          this.handleDrillDown(pin);
-        }
+        if (target && target.classList.contains('delete-pin-x')) return;
+        if (pin.targetLevelImage) this.handleDrillDown(pin);
       });
 
       this.markers.push(marker);
@@ -272,40 +443,28 @@ export class MapViewerComponent implements OnInit, OnDestroy {
     this.dialogRef = this.dialogService.open(PinDialogComponent, {
       header: 'Create New Pin',
       width: '400px',
-      modal: true,
-      breakpoints: {
-        '960px': '75vw',
-        '640px': '90vw',
-      },
+      data: { lat: latlng.lat, lng: latlng.lng },
     });
 
     this.dialogRef?.onClose.subscribe((data: any) => {
       if (data) {
-        // Determine target image based on current level
-        let targetLevelImage = '';
-        let nextName = '';
+        let targetLevelId = '';
+        const currentId = this.store.currentLevelId();
 
-        const currentUrl = this.store.currentLevel().imageUrl;
-
-        // Step 1: Master -> District (B1)
-        if (currentUrl.endsWith('MasterPlan.jpg')) {
-          targetLevelImage = 'images/B1.jpg';
+        if (currentId === 'master') {
+          targetLevelId = `dist-${crypto.randomUUID()}`;
+        } else if (currentId.includes('dist-')) {
+          targetLevelId = `build-${crypto.randomUUID()}`;
         }
-        // Step 2: District (B1) -> Building (31)
-        else if (currentUrl.endsWith('B1.jpg')) {
-          targetLevelImage = 'images/31.jpg';
-        }
-        // Step 3: Building (31) is the final level (No further drill-down)
 
         const newPin: Pin = {
           id: crypto.randomUUID(),
           ...data,
           lat: latlng.lat,
           lng: latlng.lng,
-          currentLevelImage: this.store.currentLevel().imageUrl,
-          targetLevelImage: targetLevelImage,
+          currentLevelImage: currentId,
+          targetLevelImage: targetLevelId,
         };
-
         this.store.addPin(newPin);
       }
     });
@@ -313,11 +472,7 @@ export class MapViewerComponent implements OnInit, OnDestroy {
 
   private handleDrillDown(pin: Pin) {
     if (pin.targetLevelImage) {
-      this.store.navigateToLevel({
-        id: `level-${pin.id}`,
-        name: pin.name,
-        imageUrl: pin.targetLevelImage,
-      });
+      this.store.navigateToLevel(pin.targetLevelImage, pin.name);
     }
   }
 }
