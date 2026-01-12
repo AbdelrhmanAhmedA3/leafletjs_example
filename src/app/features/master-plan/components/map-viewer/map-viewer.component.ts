@@ -98,10 +98,11 @@ import { PinDialogComponent } from '../pin-dialog/pin-dialog.component';
       }
       .map-container {
         position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
+        top: 10%;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 500px;
+        height: 500px;
         z-index: 1;
       }
 
@@ -444,6 +445,11 @@ export class MapViewerComponent implements OnInit, OnDestroy {
       header: 'Create New Pin',
       width: '400px',
       data: { lat: latlng.lat, lng: latlng.lng },
+      modal: true,
+      appendTo: 'body',
+      baseZIndex: 10000,
+      dismissableMask: true,
+      closeOnEscape: true,
     });
 
     this.dialogRef?.onClose.subscribe((data: any) => {
