@@ -1,14 +1,14 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { InputTextModule } from 'primeng/inputtext';
+import { SelectModule } from 'primeng/select';
 import { TextareaModule } from 'primeng/textarea';
-
 @Component({
   selector: 'app-pin-dialog',
   standalone: true,
-  imports: [ReactiveFormsModule, ButtonModule, InputTextModule, TextareaModule],
+  imports: [ReactiveFormsModule, ButtonModule, InputTextModule, SelectModule, TextareaModule],
   template: `
     <form [formGroup]="form" class="pin-dialog-form">
       <div class="coords-row">
@@ -26,7 +26,19 @@ import { TextareaModule } from 'primeng/textarea';
         <label for="name">Name</label>
         <input pInputText id="name" formControlName="name" placeholder="Enter pin name" />
       </div>
-
+      @if (config.data?.step === 2) {
+      <div class="field-group">
+        <label for="region">region</label>
+        <p-select
+          id="region"
+          [options]="regionsAvailable"
+          optionValue="code"
+          optionLabel="name"
+          formControlName="region"
+          placeholder="Select a region"
+        />
+      </div>
+      } @else if (!config.data?.step) {
       <div class="field-group">
         <label for="blockNumber">Area / Block Number</label>
         <input
@@ -36,17 +48,7 @@ import { TextareaModule } from 'primeng/textarea';
           placeholder="e.g. District 1 - Apartments"
         />
       </div>
-
-      <div class="field-group">
-        <label for="description">Description</label>
-        <textarea
-          pTextarea
-          id="description"
-          formControlName="description"
-          rows="3"
-          placeholder="Short description..."
-        ></textarea>
-      </div>
+      }
 
       <div class="dialog-actions">
         <p-button label="Cancel" severity="secondary" (onClick)="onCancel()" />
@@ -98,18 +100,30 @@ import { TextareaModule } from 'primeng/textarea';
     `,
   ],
 })
-export class PinDialogComponent {
+export class PinDialogComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly ref = inject(DynamicDialogRef);
-  private readonly config = inject(DynamicDialogConfig);
+  protected readonly config = inject(DynamicDialogConfig);
 
+  regionsAvailable: any[] = [
+    { name: 'b11', code: 'b11' },
+    { name: 'b12', code: 'b12' },
+    { name: 'b13', code: 'b13' },
+    { name: 'b14', code: 'b14' },
+    { name: 'b15', code: 'b15' },
+  ];
   readonly form: FormGroup = this.fb.group({
     lat: [{ value: this.config.data?.lat || 0, disabled: true }],
     lng: [{ value: this.config.data?.lng || 0, disabled: true }],
-    name: ['', Validators.required],
-    blockNumber: ['', Validators.required],
-    description: ['', Validators.required],
+    name: [''],
+    blockNumber: [''],
   });
+
+  ngOnInit() {
+    if (this.config.data?.step === 2) {
+      this.form.addControl('region', this.fb.control('', Validators.required));
+    }
+  }
 
   onCancel() {
     this.ref.close();

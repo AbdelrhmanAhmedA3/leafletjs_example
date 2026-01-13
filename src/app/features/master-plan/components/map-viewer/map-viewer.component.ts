@@ -1,4 +1,4 @@
-import { CommonModule } from '@angular/common';
+import { CommonModule, DecimalPipe } from '@angular/common';
 import {
   Component,
   effect,
@@ -22,7 +22,7 @@ import { PinDialogComponent } from '../pin-dialog/pin-dialog.component';
   selector: 'app-map-viewer',
   standalone: true,
   imports: [CommonModule, ButtonModule, TooltipModule],
-  providers: [DialogService],
+  providers: [DialogService, DecimalPipe],
   template: `
     <div class="map-container-wrapper" (dragover)="onDragOver($event)" (drop)="onDrop($event)">
       <div class="controls shadow-2">
@@ -204,6 +204,7 @@ export class MapViewerComponent implements OnInit, OnDestroy {
   readonly store = inject(MasterPlanStore);
   private readonly dialogService = inject(DialogService);
   private readonly route = inject(ActivatedRoute);
+  private readonly decimalPipe = inject(DecimalPipe);
   readonly mapContainer = viewChild<ElementRef<HTMLDivElement>>('mapContainer');
 
   readonly isCustomerOnlyRoute = signal<boolean>(false);
@@ -408,11 +409,17 @@ export class MapViewerComponent implements OnInit, OnDestroy {
       marker.bindTooltip(
         `
         <div class="p-2">
-          <div class="font-bold border-bottom-1 border-300 pb-1 mb-1">${pin.name}</div>
-          <div class="text-sm text-600 mb-1"><b>Block:</b> ${pin.blockNumber}</div>
-          <div class="text-sm mb-1">${pin.description}</div>
+          <div class="font-bold border-bottom-1 border-300 pb-1 mb-1">${
+            pin.name ? 'name: ' + pin.name : ''
+          }</br> ${pin.region ? 'region: ' + pin.region : ''}</div>
+          <div class="text-sm text-600 mb-1"><b>${
+            pin.blockNumber ? 'Block:' + pin.blockNumber : ''
+          }</div>
           <div class="text-xs text-400 mt-2 pt-1 border-top-1 border-200">
-            Lat: ${pin.lat} | Lng: ${pin.lng}
+            Lat: ${this.decimalPipe.transform(
+              pin.lat,
+              '1.0-0'
+            )} | Lng: ${this.decimalPipe.transform(pin.lng, '1.0-0')}
           </div>
         </div>
       `,
@@ -441,10 +448,13 @@ export class MapViewerComponent implements OnInit, OnDestroy {
   }
 
   private openPinDialog(latlng: L.LatLng) {
+    const currentId = this.store.currentLevelId();
+    const currentStep = currentId === 'master' ? 1 : 2;
+
     this.dialogRef = this.dialogService.open(PinDialogComponent, {
       header: 'Create New Pin',
       width: '400px',
-      data: { lat: latlng.lat, lng: latlng.lng },
+      data: { lat: latlng.lat, lng: latlng.lng, step: currentStep },
       modal: true,
       appendTo: 'body',
       baseZIndex: 10000,

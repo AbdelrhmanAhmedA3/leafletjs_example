@@ -1,6 +1,7 @@
 export interface Pin {
   id: string;
   name: string;
+  region: string;
   blockNumber: string;
   description: string;
   lat: number;
