@@ -4,6 +4,7 @@ export interface Pin {
   region: string;
   blockNumber: string;
   description: string;
+  isBuilding?: boolean;
   lat: number;
   lng: number;
   currentLevelImage: string;

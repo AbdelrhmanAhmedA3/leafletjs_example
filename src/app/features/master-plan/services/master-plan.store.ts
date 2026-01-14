@@ -77,6 +77,10 @@ export class MasterPlanStore {
     this.pins.update((current) => [...current, pin]);
   }
 
+  updatePin(updatedPin: Pin) {
+    this.pins.update((current) => current.map((p) => (p.id === updatedPin.id ? updatedPin : p)));
+  }
+
   removePin(id: string) {
     this.pins.update((current) => current.filter((p) => p.id !== id));
   }

@@ -440,21 +440,31 @@ export class MapViewerComponent implements OnInit, OnDestroy {
       marker.on('click', (e: L.LeafletMouseEvent) => {
         const target = e.originalEvent.target as HTMLElement;
         if (target && target.classList.contains('delete-pin-x')) return;
-        if (pin.targetLevelImage) this.handleDrillDown(pin);
+
+        if (pin.isBuilding) {
+          this.openPinDialog(L.latLng(pin.lat, pin.lng), pin);
+        } else if (pin.targetLevelImage) {
+          this.handleDrillDown(pin);
+        }
       });
 
       this.markers.push(marker);
     });
   }
 
-  private openPinDialog(latlng: L.LatLng) {
+  private openPinDialog(latlng: L.LatLng, existingPin?: Pin) {
     const currentId = this.store.currentLevelId();
     const currentStep = currentId === 'master' ? 1 : 2;
 
     this.dialogRef = this.dialogService.open(PinDialogComponent, {
-      header: 'Create New Pin',
+      header: existingPin ? 'Pin Details' : 'Create New Pin',
       width: '400px',
-      data: { lat: latlng.lat, lng: latlng.lng, step: currentStep },
+      data: {
+        lat: latlng.lat,
+        lng: latlng.lng,
+        step: currentStep,
+        existingPin: existingPin,
+      },
       modal: true,
       appendTo: 'body',
       baseZIndex: 10000,
@@ -464,24 +474,42 @@ export class MapViewerComponent implements OnInit, OnDestroy {
 
     this.dialogRef?.onClose.subscribe((data: any) => {
       if (data) {
-        let targetLevelId = '';
-        const currentId = this.store.currentLevelId();
+        if (existingPin) {
+          // Update existing pin
+          this.store.updatePin({
+            ...existingPin,
+            ...data,
+          });
+        } else {
+          // Create new pin
+          let targetLevelId = '';
+          const currentId = this.store.currentLevelId();
 
-        if (currentId === 'master') {
-          targetLevelId = `dist-${crypto.randomUUID()}`;
-        } else if (currentId.includes('dist-')) {
-          targetLevelId = `build-${crypto.randomUUID()}`;
+          if (currentId === 'master') {
+            targetLevelId = `dist-${crypto.randomUUID()}`;
+          } else if (currentId.includes('dist-')) {
+            targetLevelId = `build-${crypto.randomUUID()}`;
+          }
+
+          // If an image was uploaded in the dialog, update the target level immediately
+          if (data.targetLevelImage && targetLevelId) {
+            this.store.updateLevelImage(targetLevelId, data.targetLevelImage);
+          }
+
+          const newPin: Pin = {
+            id: crypto.randomUUID(),
+            ...data,
+            lat: latlng.lat,
+            lng: latlng.lng,
+            currentLevelImage: currentId,
+            targetLevelImage: targetLevelId,
+          };
+          // Remove the base64 image from pin metadata to avoid bloat,
+          // as it's already stored in the level record
+          delete (newPin as any).targetLevelImageRef;
+
+          this.store.addPin(newPin);
         }
-
-        const newPin: Pin = {
-          id: crypto.randomUUID(),
-          ...data,
-          lat: latlng.lat,
-          lng: latlng.lng,
-          currentLevelImage: currentId,
-          targetLevelImage: targetLevelId,
-        };
-        this.store.addPin(newPin);
       }
     });
   }
