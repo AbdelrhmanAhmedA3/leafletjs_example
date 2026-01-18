@@ -244,8 +244,22 @@ export class PinDialogComponent implements OnInit {
     if (step === 2 || existingPin?.region) {
       this.form.addControl(
         'region',
-        this.fb.control(existingPin?.region || '', Validators.required)
+        this.fb.control(
+          existingPin?.region || '',
+          this.form.get('isBuilding')?.value ? Validators.required : null
+        )
       );
+
+      // Dynamic validation based on isBuilding
+      this.form.get('isBuilding')?.valueChanges.subscribe((isBuilding) => {
+        const regionControl = this.form.get('region');
+        if (isBuilding) {
+          regionControl?.setValidators(Validators.required);
+        } else {
+          regionControl?.clearValidators();
+        }
+        regionControl?.updateValueAndValidity();
+      });
     }
   }
 
