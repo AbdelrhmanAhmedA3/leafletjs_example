@@ -50,6 +50,7 @@ import { SelectModule } from 'primeng/select';
           optionValue="code"
           optionLabel="name"
           formControlName="region"
+          appendTo="body"
           [placeholder]="'Select ' + dropdownLabel().toLowerCase()"
         />
       </div>
@@ -230,6 +231,7 @@ export class PinDialogComponent implements OnInit {
   });
 
   regionsAvailable: any[] = [
+    { name: 'b10', code: 'b10' },
     { name: 'b11', code: 'b11' },
     { name: 'b12', code: 'b12' },
     { name: 'b13', code: 'b13' },
