@@ -19,7 +19,7 @@ export class MasterPlanStore {
   readonly pins = signal<Pin[]>([]);
 
   readonly currentLevelPins = computed(() =>
-    this.pins().filter((p) => p.currentLevelImage === this.currentLevelId())
+    this.pins().filter((p) => p.currentLevelImage === this.currentLevelId()),
   );
 
   constructor() {
@@ -50,6 +50,14 @@ export class MasterPlanStore {
       ...prev,
       [levelId]: { ...prev[levelId], imageUrl: base64Image },
     }));
+  }
+
+  removeLevelImage(levelId: string) {
+    this.levels.update((prev) => ({
+      ...prev,
+      [levelId]: { ...prev[levelId], imageUrl: undefined },
+    }));
+    this.pins.update((current) => current.filter((p) => p.currentLevelImage !== levelId));
   }
 
   navigateToLevel(levelId: string, name: string) {

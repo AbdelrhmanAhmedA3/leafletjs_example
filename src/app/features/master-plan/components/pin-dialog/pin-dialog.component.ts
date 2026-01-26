@@ -25,10 +25,22 @@ import { SelectModule } from 'primeng/select';
       </div>
 
       @if (config.data?.step === 2) {
-      <div class="field-group checkbox-group">
-        <label for="isBuilding">Is this pin a building?</label>
-        <p-checkbox formControlName="isBuilding" [binary]="true" id="isBuilding" />
-      </div>
+        <div class="field-group checkbox-group">
+          <label for="isBuilding">Is this pin a building?</label>
+          <p-checkbox formControlName="isBuilding" [binary]="true" id="isBuilding" />
+        </div>
+      }
+
+      @if (config.data?.step === 3) {
+        <div class="field-group">
+          <label for="unitNumber">Unit Number</label>
+          <input
+            pInputText
+            id="unitNumber"
+            formControlName="unitNumber"
+            placeholder="Enter unit number"
+          />
+        </div>
       }
 
       <div class="field-group">
@@ -42,50 +54,55 @@ import { SelectModule } from 'primeng/select';
       </div>
 
       @if (config.data?.step === 2 && isBuildingValue()) {
-      <div class="field-group">
-        <label for="region">{{ dropdownLabel() }}</label>
-        <p-select
-          id="region"
-          [options]="regionsAvailable"
-          optionValue="code"
-          optionLabel="name"
-          formControlName="region"
-          appendTo="body"
-          [placeholder]="'Select ' + dropdownLabel().toLowerCase()"
-        />
-      </div>
-      } @if (!isBuildingValue()) {
-      <div class="field-group">
-        <label>Upload Master Plan Image</label>
-        <div
-          class="upload-area"
-          [class.has-file]="!!uploadedImage()"
-          (dragover)="onDragOver($event)"
-          (drop)="onDrop($event)"
-          (click)="fileInput.click()"
-        >
-          @if (uploadedImage()) {
-          <img [src]="uploadedImage()" alt="Preview" class="preview-img" />
-          <div class="upload-overlay">
-            <i class="pi pi-refresh"></i>
-            <span>Change Image</span>
-          </div>
-          } @else {
-          <div class="upload-placeholder">
-            <i class="pi pi-cloud-upload"></i>
-            <p>Drag & Drop or Click to Upload</p>
-            <span class="text-xs">PNG, JPG accepted</span>
-          </div>
-          }
-          <input
-            #fileInput
-            type="file"
-            hidden
-            accept="image/png, image/jpeg"
-            (change)="onFileSelected($event)"
+        <div class="field-group">
+          <label for="region">{{ dropdownLabel() }}</label>
+          <p-select
+            id="region"
+            [options]="regionsAvailable"
+            optionValue="code"
+            optionLabel="name"
+            formControlName="region"
+            appendTo="body"
+            [placeholder]="'Select ' + dropdownLabel().toLowerCase()"
           />
         </div>
-      </div>
+      }
+      @if (
+        config.data?.step === 1 ||
+        (config.data?.step === 2 && !isBuildingValue()) ||
+        (config.data?.step === 2 && isBuildingValue())
+      ) {
+        <div class="field-group">
+          <label>{{ uploadLabel() }}</label>
+          <div
+            class="upload-area"
+            [class.has-file]="!!uploadedImage()"
+            (dragover)="onDragOver($event)"
+            (drop)="onDrop($event)"
+            (click)="fileInput.click()"
+          >
+            @if (uploadedImage()) {
+              <img [src]="uploadedImage()" alt="Preview" class="preview-img" />
+              <div class="upload-overlay">
+                <i class="pi pi-refresh"></i>
+                <span>Change Image</span>
+              </div>
+            } @else {
+              <div class="upload-placeholder">
+                <i class="pi pi-cloud-upload"></i>
+                <p>Drag & Drop or Click to Upload</p>
+                <span class="text-xs">PNG, JPG accepted</span>
+              </div>
+            }
+            <input
+              #fileInput
+              type="file"
+              hidden
+              accept="image/png, image/jpeg"
+              (change)="onFileSelected($event)"
+            />
+          </div>
+        </div>
       }
 
       <div class="dialog-actions">
@@ -223,7 +240,14 @@ export class PinDialogComponent implements OnInit {
   protected readonly nameLabel = computed(() => {
     const step = this.config.data?.step || 1;
     if (step === 1) return 'Region Name';
+    if (step === 3) return 'Unit Name';
     return this.isBuildingValue() ? 'Building Name' : 'Sub Region Name';
+  });
+
+  protected readonly uploadLabel = computed(() => {
+    const step = this.config.data?.step || 1;
+    if (step === 3) return 'Upload Unit Image';
+    return 'Upload Master Plan Image';
   });
 
   protected readonly dropdownLabel = computed(() => {
@@ -248,8 +272,8 @@ export class PinDialogComponent implements OnInit {
         'region',
         this.fb.control(
           existingPin?.region || '',
-          this.form.get('isBuilding')?.value ? Validators.required : null
-        )
+          this.form.get('isBuilding')?.value ? Validators.required : null,
+        ),
       );
 
       // Dynamic validation based on isBuilding
@@ -262,6 +286,13 @@ export class PinDialogComponent implements OnInit {
         }
         regionControl?.updateValueAndValidity();
       });
+    }
+
+    if (step === 3) {
+      this.form.addControl(
+        'unitNumber',
+        this.fb.control(existingPin?.unitNumber || '', Validators.required),
+      );
     }
   }
 

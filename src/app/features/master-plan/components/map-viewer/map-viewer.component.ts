@@ -28,24 +28,33 @@ import { PinDialogComponent } from '../pin-dialog/pin-dialog.component';
       <div class="controls shadow-2">
         <div class="controls-left">
           @if (store.navigationHistory().length > 0) {
-          <p-button
-            icon="pi pi-arrow-left"
-            severity="secondary"
-            (onClick)="store.goBack()"
-            label="Back"
-          />
+            <p-button
+              icon="pi pi-arrow-left"
+              severity="secondary"
+              (onClick)="store.goBack()"
+              label="Back"
+            />
           }
           <h2 class="level-title">{{ store.currentLevel().name }}</h2>
         </div>
 
         <div class="controls-right">
           @if (!isCustomerOnlyRoute()) {
-          <p-button
-            [label]="store.isAdminMode() ? 'Exit Admin Mode' : 'Admin Create Pins'"
-            [severity]="store.isAdminMode() ? 'danger' : 'primary'"
-            [icon]="store.isAdminMode() ? 'pi pi-lock' : 'pi pi-plus'"
-            (onClick)="store.toggleAdminMode()"
-          />
+            <p-button
+              [label]="store.isAdminMode() ? 'Exit Admin Mode' : 'Admin Create Pins'"
+              [severity]="store.isAdminMode() ? 'danger' : 'primary'"
+              [icon]="store.isAdminMode() ? 'pi pi-lock' : 'pi pi-plus'"
+              (onClick)="store.toggleAdminMode()"
+            />
+          }
+          @if (store.isAdminMode() && store.currentLevel().imageUrl) {
+            <p-button
+              label="Delete Image"
+              severity="danger"
+              icon="pi pi-trash"
+              class="ml-2"
+              (onClick)="deleteCurrentLevelImage()"
+            />
           }
         </div>
       </div>
@@ -53,36 +62,36 @@ import { PinDialogComponent } from '../pin-dialog/pin-dialog.component';
       <div #mapContainer class="map-container"></div>
 
       @if (!store.currentLevel().imageUrl) {
-      <div class="overlay-state">
-        @if (store.isAdminMode()) {
-        <div class="drop-zone">
-          <i class="pi pi-cloud-upload upload-icon"></i>
-          <p class="drop-text">Drag & Drop Image Here</p>
-          <p class="drop-subtext">
-            Please upload the image for <b>{{ store.currentLevel().name }}</b>
-          </p>
-          <input
-            type="file"
-            #fileInput
-            class="hidden-input"
-            (change)="onFileSelected($event)"
-            accept="image/*"
-          />
-          <p-button
-            label="Browse Files"
-            icon="pi pi-search"
-            class="mt-3"
-            (onClick)="fileInput.click()"
-          />
+        <div class="overlay-state">
+          @if (store.isAdminMode()) {
+            <div class="drop-zone">
+              <i class="pi pi-cloud-upload upload-icon"></i>
+              <p class="drop-text">Drag & Drop Image Here</p>
+              <p class="drop-subtext">
+                Please upload the image for <b>{{ store.currentLevel().name }}</b>
+              </p>
+              <input
+                type="file"
+                #fileInput
+                class="hidden-input"
+                (change)="onFileSelected($event)"
+                accept="image/*"
+              />
+              <p-button
+                label="Browse Files"
+                icon="pi pi-search"
+                class="mt-3"
+                (onClick)="fileInput.click()"
+              />
+            </div>
+          } @else {
+            <div class="empty-state">
+              <i class="pi pi-image text-6xl text-400"></i>
+              <p class="text-xl">No image uploaded for this area yet.</p>
+              <p class="text-600">Please contact the administrator.</p>
+            </div>
+          }
         </div>
-        } @else {
-        <div class="empty-state">
-          <i class="pi pi-image text-6xl text-400"></i>
-          <p class="text-xl">No image uploaded for this area yet.</p>
-          <p class="text-600">Please contact the administrator.</p>
-        </div>
-        }
-      </div>
       }
     </div>
   `,
@@ -159,7 +168,9 @@ import { PinDialogComponent } from '../pin-dialog/pin-dialog.component';
         border-radius: 12px;
         text-align: center;
         background: white;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        box-shadow:
+          0 4px 6px -1px rgba(0, 0, 0, 0.1),
+          0 2px 4px -1px rgba(0, 0, 0, 0.06);
       }
 
       .drop-zone {
@@ -237,6 +248,9 @@ export class MapViewerComponent implements OnInit, OnDestroy {
         } else {
           this.updateMapImage(level);
         }
+      } else if (this.map && this.imageOverlay) {
+        this.map.removeLayer(this.imageOverlay);
+        this.imageOverlay = undefined;
       }
     });
 
@@ -322,6 +336,10 @@ export class MapViewerComponent implements OnInit, OnDestroy {
         resolve(canvas.toDataURL('image/jpeg', quality));
       };
     });
+  }
+
+  deleteCurrentLevelImage() {
+    this.store.removeLevelImage(this.store.currentLevelId());
   }
 
   private initMap() {
@@ -418,12 +436,12 @@ export class MapViewerComponent implements OnInit, OnDestroy {
           <div class="text-xs text-400 mt-2 pt-1 border-top-1 border-200">
             Lat: ${this.decimalPipe.transform(
               pin.lat,
-              '1.0-0'
+              '1.0-0',
             )} | Lng: ${this.decimalPipe.transform(pin.lng, '1.0-0')}
           </div>
         </div>
       `,
-        { permanent: false, direction: 'left', className: 'p-tooltip-custom' }
+        { permanent: false, direction: 'left', className: 'p-tooltip-custom' },
       );
 
       if (this.store.isAdminMode()) {
@@ -441,10 +459,17 @@ export class MapViewerComponent implements OnInit, OnDestroy {
         const target = e.originalEvent.target as HTMLElement;
         if (target && target.classList.contains('delete-pin-x')) return;
 
-        if (pin.isBuilding) {
+        const currentId = this.store.currentLevelId();
+        const isUnitLevel = currentId.startsWith('build-');
+
+        if (isUnitLevel && this.store.isAdminMode()) {
           this.openPinDialog(L.latLng(pin.lat, pin.lng), pin);
+        } else if (pin.isBuilding && pin.targetLevelImage) {
+          this.handleDrillDown(pin);
         } else if (pin.targetLevelImage) {
           this.handleDrillDown(pin);
+        } else if (this.store.isAdminMode()) {
+          this.openPinDialog(L.latLng(pin.lat, pin.lng), pin);
         }
       });
 
@@ -454,7 +479,12 @@ export class MapViewerComponent implements OnInit, OnDestroy {
 
   private openPinDialog(latlng: L.LatLng, existingPin?: Pin) {
     const currentId = this.store.currentLevelId();
-    const currentStep = currentId === 'master' ? 1 : 2;
+    let currentStep = 1;
+    if (currentId.startsWith('dist-')) {
+      currentStep = 2;
+    } else if (currentId.startsWith('build-')) {
+      currentStep = 3;
+    }
 
     this.dialogRef = this.dialogService.open(PinDialogComponent, {
       header: existingPin ? 'Pin Details' : 'Create New Pin',
@@ -487,8 +517,10 @@ export class MapViewerComponent implements OnInit, OnDestroy {
 
           if (currentId === 'master') {
             targetLevelId = `dist-${crypto.randomUUID()}`;
-          } else if (currentId.includes('dist-')) {
+          } else if (currentId.startsWith('dist-')) {
             targetLevelId = `build-${crypto.randomUUID()}`;
+          } else if (currentId.startsWith('build-')) {
+            targetLevelId = `unit-${crypto.randomUUID()}`;
           }
 
           // If an image was uploaded in the dialog, update the target level immediately

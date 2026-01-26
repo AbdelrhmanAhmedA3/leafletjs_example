@@ -5,6 +5,8 @@ export interface Pin {
   blockNumber: string;
   description: string;
   isBuilding?: boolean;
+  unitName?: string;
+  unitNumber?: string;
   lat: number;
   lng: number;
   currentLevelImage: string;
